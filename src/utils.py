@@ -255,29 +255,38 @@ def len_bs_dict_fn(x):
     return bs
 
 
-def schedule(
-    lengths,
-    mini_batch_size=1,
-    vbs=False,
-):
-    # sort ids by length
+def schedule(lengths, mini_batch_size=1, vbs=False):
+    """
+    根据给定的序列长度列表，生成训练批次。
+    
+    :param lengths: 列表，包含每个序列的长度。
+    :param mini_batch_size: int, 迷你批次的大小。
+    :param vbs: bool, 是否使用可变批次大小。
+    :return: 返回一个列表，其中每个元素是一个元组，包含批次的ID列表和最大长度。
+    """
+    
+    # 根据序列长度对序列ID进行排序
     lengths_with_id = [(i, l) for i, l in enumerate(lengths)]
     sorted_lengths_with_id = sorted(lengths_with_id, key=lambda x: x[1], reverse=False)
 
-    # batchify
     batches = []
+    
+    # 固定批次大小
     if not vbs:
         for i in range(0, len(lengths), mini_batch_size):
             batch = sorted_lengths_with_id[i : i + mini_batch_size]
             batch_ids = [x[0] for x in batch]
             max_len = max([x[1] for x in batch])
             batches.append((batch_ids, max_len))
+    
+    # 使用可变批次大小
     else:
-        # group by length
+        # 根据序列长度进行分组
         ids_len_dict = defaultdict(list)
         for i, l in sorted_lengths_with_id:
             ids_len_dict[buckit(l)].append(i)
-        # batchify
+        
+        # 根据可变批次大小进行批次划分
         max_l = max(lengths)
         for l, ids in ids_len_dict.items():
             bs = len_bs_dict_fn(l)

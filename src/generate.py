@@ -7,7 +7,7 @@ from fastchat.conversation import conv_templates
 from fastchat.serve.inference import load_model
 from peft import PeftModel
 
-from . import utils
+import utils
 
 
 class MLP(nn.Module):
@@ -35,9 +35,32 @@ class Creator:
         debug=False,
         lora_path=None,
     ):
-        self.model, self.tokenizer = load_model(
-            model_name, device, num_gpus, load_8bit, debug
-        )
+        if model_name == 'openmoe':
+            from transformers import T5Tokenizer
+            from transformers.models.llama import LlamaConfig
+            from modeling_openmoe import OpenMoeForCausalLM, set_openmoe_args
+            self.tokenizer = T5Tokenizer.from_pretrained("google/umt5-small")
+            config = LlamaConfig.from_pretrained(f"hpcaitech/openmoe-base")
+            set_openmoe_args(config,
+                         num_experts=config.num_experts,
+                         moe_layer_interval=config.moe_layer_interval,
+                         enable_kernel=False)
+            self.model = OpenMoeForCausalLM(config)
+            ckpt_path = "/home/nus-hx/code/ColossalAI/examples/language/openmoe/outputs/2023.12.11-13.11.06-yizhongw/openmoe_base_yizhongw_super_natural_instruction_generation.pth"
+            ckpt = torch.load(ckpt_path)
+            state_dict = {}
+            for key, value in ckpt.items():
+                if key.startswith("module."):
+                    state_dict[key[7:]] = value
+                else:
+                    state_dict[key] = value
+            self.model.load_state_dict(state_dict)
+            self.model = self.model.eval().bfloat16()
+            self.model = self.model.to(torch.cuda.current_device())
+        else:
+            self.model, self.tokenizer = load_model(
+                model_name, device, num_gpus, load_8bit, debug
+            )
         self.conv = conv_templates[conv_template].copy()
         self.tokenizer.pad_token = self.tokenizer.unk_token
         self.tokenizer.padding_side = "left"
@@ -238,6 +261,20 @@ class Creator:
         results = [outs[i] for i in order]
         return results
 
+    def generate_pd_group(
+        self,
+        prompt,
+        perception_strategy="vanilla",
+        vbs=False,
+        fcr=False,
+        stream=True,
+        lenpred_bs=128,
+        **kwargs,
+    ):
+        '''schedule batch inference based on prefilling and decoding similarity strategy
+        '''
+        ...
+
     @torch.inference_mode()
     def __call__(self, prompt, strategy="stream", **kwargs):
         # ===
@@ -252,6 +289,8 @@ class Creator:
             out = self.generate(prompt, stream=False, **kwargs)
         elif strategy == "group":
             out = self.generate_group(prompt, **kwargs)
+        # elif strategy == "pd":
+        #     out = self.generate_pd_group(prompt, **kwargs)
         else:
             raise NotImplementedError
 

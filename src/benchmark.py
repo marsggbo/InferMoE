@@ -4,8 +4,8 @@ import time
 
 import tqdm
 
-from . import utils
-from .generate import Creator
+import utils
+from generate import Creator
 
 
 def benchmark(
@@ -68,7 +68,7 @@ def benchmark(
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="./data/alpaca-val-10k.json")
+    parser.add_argument("--data-path", type=str, default="/home/nus-hx/code/Sequence-Scheduling/data/alpaca-val-10k.json")
     parser.add_argument("--model", type=str, default="./ckpts/vicuna-7b")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num-data", type=int, default=None)
